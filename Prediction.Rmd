@@ -1,0 +1,107 @@
+---
+title: "Practical Machine Learning Prediction Assignment"
+author: "Troy Huffman"
+date: "4/19/2022"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Model Building
+
+'Classe' is a factor variable that corresponds to the following exercise methods:
+
+exactly according to the specification (Class A)
+
+throwing the elbows to the front (Class B)
+
+lifting the dumbbell only halfway (Class C)
+
+lowering the dumbbell only halfway (Class D)
+
+throwing the hips to the front (Class E)
+
+Class A is the correct exercise method whereas the other classes are commonly made mistakes. The prediction model will be based on maximizing the accuracy and minimizing the out-of-sample error. All available variables after cleaning will be used for prediction. Random Forest algorithm will be used.
+
+## Cross-validation
+
+Cross-validation will be performed by subsampling our training data set randomly without replacement according to training data (70% of the original data set) and testing data (30%). The Random Forest algorithm will be fitted on the training data set and tested on the testing data.
+
+## Expected Out-Of-Sample Error
+
+The expected value of the out-of-sample error will correspond to the expected number of missclassified observations/total observations in the test data set. Therefore the expected out-of-sample error is calculated by 1 - Accuracy (as reported from the cross-validation data set).
+
+
+
+```{r load}
+data <- read.csv("pml-training.csv")
+library(caret)
+library(randomForest)
+```
+
+```{r partition}
+set.seed(411)
+#partioning the training data into train and test
+train <- createDataPartition(y=data$classe,p=.70,list=F)
+training <- data[train,]
+testing <- data[-train,]
+```
+
+```{r clean}
+Cl <- grep("name|timestamp|window|X", colnames(training), value=F) 
+trainingCl <- training[,-Cl]
+#excluding variables with excessive missing data
+trainingCl[trainingCl==""] <- NA
+highNA <- apply(trainingCl, 2, function(x) sum(is.na(x)))/nrow(trainingCl)
+trainingCl <- trainingCl[!(highNA>0.95)]
+trainingCl$classe = factor(trainingCl$classe)
+```
+
+```{r PCA}
+#performing principal component analysis
+preProc <- preProcess(trainingCl[,1:52],method="pca",thresh=.8)
+preProc <- preProcess(trainingCl[,1:52],method="pca",thresh=.9)
+preProc <- preProcess(trainingCl[,1:52],method="pca",thresh=.95)
+preProc <- preProcess(trainingCl[,1:52],method="pca",pcaComp=25) 
+preProc$rotation
+trainingPC <- predict(preProc,trainingCl[,1:52])
+```
+
+```{r random-forest}
+modFitRF <- randomForest(trainingCl$classe ~ .,   data=trainingPC, do.trace=F)
+print(modFitRF) 
+```
+
+```{r test-partition}
+#running model on partitioned test data
+testingCl <- testing[,-Cl]
+testingCl[testingCl==""] <- NA
+NArate <- apply(testingCl, 2, function(x) sum(is.na(x)))/nrow(testingCl)
+testingCl <- testingCl[!(NArate>0.95)]
+testingPC <- predict(preProc,testingCl[,1:52])
+testingCl$classe = factor(testingCl$classe)
+confusionMatrix(testingCl$classe,predict(modFitRF,testingPC))
+```
+
+###Discussion:
+The model showed an overall accuracy of 97% for the testing set. The model was used for the course project prediction quiz and correctly identified 18 of the 20 test cases. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
